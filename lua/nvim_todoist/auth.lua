@@ -1,4 +1,4 @@
-local config = require("nvim_todoist.config")
+local config = require("todoist.config")
 
 local uv = vim.loop
 

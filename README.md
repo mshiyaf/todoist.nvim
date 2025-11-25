@@ -19,7 +19,7 @@ Lazy.nvim example:
 {
   "mshiyaf/todoist.nvim",
   config = function()
-    require("nvim_todoist").setup({
+    require("todoist").setup({
       -- optional overrides
       default_project = nil, -- default project id
       default_priority = nil, -- 1-4 per Todoist docs
@@ -34,7 +34,7 @@ Packer example:
 use({
   "mshiyaf/todoist.nvim",
   config = function()
-    require("nvim_todoist").setup()
+    require("todoist").setup()
   end,
 })
 ```
@@ -57,7 +57,7 @@ In the task window:
 - `q` close the window
 
 ## Configuration
-All options are passed to `require("nvim_todoist").setup({ ... })`:
+All options are passed to `require("todoist").setup({ ... })`:
 
 - `default_project` (number) – default project id for new tasks and list filters.
 - `default_priority` (1-4) – default priority for created tasks.

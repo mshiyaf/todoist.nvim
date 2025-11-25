@@ -1,7 +1,7 @@
-local config = require("nvim_todoist.config")
-local auth = require("nvim_todoist.auth")
-local client = require("nvim_todoist.client")
-local ui = require("nvim_todoist.ui")
+local config = require("todoist.config")
+local auth = require("todoist.auth")
+local client = require("todoist.client")
+local ui = require("todoist.ui")
 
 local M = {}
 
