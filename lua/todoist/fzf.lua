@@ -27,8 +27,11 @@ local function parse_task_from_entry(entry)
 end
 
 local function create_previewer(task_map)
-  return require("fzf-lua").shell.raw_preview_action_cmd(function(items)
-    local parsed = parse_task_from_entry(items[1])
+  local fzf = require("fzf-lua")
+  local previewer = fzf.previewers.builtin.new()
+
+  previewer.preview_fn = function(entry, _)
+    local parsed = parse_task_from_entry(entry)
     if not parsed then return "Invalid task" end
 
     local task = task_map[tostring(parsed.id)]
@@ -56,8 +59,10 @@ local function create_previewer(task_map)
       task.description or "(no description)",
     }
 
-    return table.concat(lines, "\n")
-  end)
+    return lines
+  end
+
+  return previewer
 end
 
 local function handle_complete(entry, task_map, opts)
