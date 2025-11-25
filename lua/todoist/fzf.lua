@@ -26,16 +26,23 @@ local function parse_task_from_entry(entry)
   return { id = id }
 end
 
-local function create_previewer(task_map)
-  local fzf = require("fzf-lua")
-  local previewer = fzf.previewers.builtin.new()
+local preview_file = vim.fn.tempname()
 
-  previewer.preview_fn = function(entry, _)
+local function create_preview_command(task_map)
+  return function(items)
+    local entry = items[1]
     local parsed = parse_task_from_entry(entry)
-    if not parsed then return "Invalid task" end
+
+    if not parsed then
+      vim.fn.writefile({"Invalid task"}, preview_file)
+      return "cat " .. preview_file
+    end
 
     local task = task_map[tostring(parsed.id)]
-    if not task then return "Task not found" end
+    if not task then
+      vim.fn.writefile({"Task not found"}, preview_file)
+      return "cat " .. preview_file
+    end
 
     local due_str = "None"
     if task.due and type(task.due) == "table" then
@@ -59,10 +66,9 @@ local function create_previewer(task_map)
       task.description or "(no description)",
     }
 
-    return lines
+    vim.fn.writefile(lines, preview_file)
+    return "cat " .. preview_file
   end
-
-  return previewer
 end
 
 local function handle_complete(entry, task_map, opts)
@@ -363,7 +369,7 @@ function M.show_tasks(tasks, opts)
   fzf.fzf_exec(entries, {
     prompt = "Todoist> ",
     winopts = cfg.fzf.winopts,
-    previewer = create_previewer(task_map),
+    preview = create_preview_command(task_map),
     actions = create_actions(task_map, opts),
     fzf_opts = {
       ["--no-multi"] = "",
