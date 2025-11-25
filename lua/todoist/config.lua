@@ -40,9 +40,9 @@ local defaults = {
     show_priority = true,
     show_due_date = true,
   },
-  today_view_ui = "custom",  -- "custom" or "fzf"
+  today_view_ui = "custom", -- "custom" or "fzf"
   custom_ui = {
-    split_ratio = 0.6,  -- List window width percentage
+    split_ratio = 0.6,      -- List window width percentage
     enable_fuzzy_search = true,
     show_priority_headers = true,
     auto_preview = true,
@@ -54,6 +54,16 @@ local defaults = {
       header = { fg = "#f8f8f2", bold = true },
       project = { fg = "#50fa7b", italic = true },
       due_time = { fg = "#ff79c6" },
+    },
+  },
+  loader = {
+    enabled = true,
+    spinner_frames = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" },
+    frame_delay = 80, -- milliseconds
+    messages = {
+      loading_tasks = "Loading tasks...",
+      refreshing = "Refreshing tasks...",
+      loading_today = "Loading today's tasks...",
     },
   },
 }

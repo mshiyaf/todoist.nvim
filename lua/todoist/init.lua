@@ -27,10 +27,21 @@ local function refresh_tasks(opts)
     return
   end
 
+  -- Start loader for FZF
+  local loader = require("todoist.loader")
+  local loader_id = loader.create_loader({
+    ui_type = "fzf",
+    message = "Loading tasks...",
+  })
+  loader.start(loader_id)
+
   client.fetch_tasks(token, {
     project_id = opts.project_id or config.get().default_project,
     filter = opts.filter,
   }, function(err, tasks)
+    -- Stop loader
+    loader.stop(loader_id)
+
     if err then
       notify(err, vim.log.levels.ERROR)
       return
@@ -85,7 +96,18 @@ local function refresh_today_view()
   local cfg = config.get()
   local use_custom_ui = cfg.today_view_ui == "custom"
 
+  -- Start loader for both UI modes
+  local loader = require("todoist.loader")
+  local loader_id = loader.create_loader({
+    ui_type = "fzf",  -- Use notification style for both (UI doesn't exist yet)
+    message = "Loading today's tasks...",
+  })
+  loader.start(loader_id)
+
   local function open_today(tasks, projects)
+    -- Stop loader before opening UI
+    loader.stop(loader_id)
+
     if use_custom_ui then
       local custom_ui = require("todoist.custom_ui")
       custom_ui.show_today(tasks or {}, {
@@ -122,6 +144,8 @@ local function refresh_today_view()
 
   client.fetch_tasks(token, { filter = "today" }, function(err, tasks)
     if err then
+      -- Stop loader on error
+      loader.stop(loader_id)
       notify(err, vim.log.levels.ERROR)
       return
     end

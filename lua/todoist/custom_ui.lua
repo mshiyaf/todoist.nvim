@@ -302,7 +302,7 @@ local function render_grouped_tasks(buf, tasks, project_lookup)
   local grouped = group_tasks_by_priority(tasks)
 
   local has_tasks = false
-  for _, priority in ipairs({4, 3, 2, 1}) do
+  for _, priority in ipairs({ 4, 3, 2, 1 }) do
     if #grouped[priority] > 0 then
       has_tasks = true
 
@@ -369,7 +369,7 @@ local function apply_highlights(buf, lines, line_map)
   pcall(vim.api.nvim_buf_clear_namespace, buf, ns, 0, -1)
 
   for line_num, line_info in pairs(line_map) do
-    local line_idx = line_num - 1  -- 0-indexed
+    local line_idx = line_num - 1 -- 0-indexed
     if line_idx >= 0 and line_idx < #lines then
       if line_info.type == "header" then
         -- Highlight entire header line
@@ -477,6 +477,8 @@ local function format_task_preview_detailed(task, project_lookup)
   table.insert(lines, "  ctrl-x     Delete task")
   table.insert(lines, "  ctrl-r     Refresh list")
   table.insert(lines, "  /          Search tasks")
+  table.insert(lines, "  <leader>ta Add new task")
+  table.insert(lines, "  p          Toggle details pane")
   table.insert(lines, "  q          Close window")
 
   return lines
@@ -492,6 +494,16 @@ local function update_preview(state_obj)
     return
   end
 
+  -- Don't update if preview is hidden
+  if state_obj.preview_hidden then
+    return
+  end
+
+  -- Validate preview buffer
+  if not vim.api.nvim_buf_is_valid(state_obj.preview_buf) then
+    return
+  end
+
   local cursor = vim.api.nvim_win_get_cursor(state_obj.list_win)
   local line_num = cursor[1]
   local line_info = state_obj.line_map[line_num]
@@ -501,15 +513,97 @@ local function update_preview(state_obj)
     preview_lines = format_task_preview_detailed(line_info.task, state_obj.project_lookup)
   elseif line_info and line_info.type == "empty" then
     if state_obj.search_mode and state_obj.search_query ~= "" then
-      preview_lines = { "", "  No tasks match your search", "", string.format("  Query: '%s'", state_obj.search_query), "", "  Press ESC to clear search" }
+      preview_lines = { "", "  No tasks match your search", "", string.format("  Query: '%s'", state_obj.search_query),
+        "", "  Press ESC to clear search" }
     else
       preview_lines = { "", "  No tasks in your today list", "", "  Add tasks with :TodoistAdd" }
     end
   end
 
-  vim.api.nvim_buf_set_option(state_obj.preview_buf, 'modifiable', true)
-  vim.api.nvim_buf_set_lines(state_obj.preview_buf, 0, -1, false, preview_lines)
-  vim.api.nvim_buf_set_option(state_obj.preview_buf, 'modifiable', false)
+  pcall(function()
+    vim.api.nvim_buf_set_option(state_obj.preview_buf, 'modifiable', true)
+    vim.api.nvim_buf_set_lines(state_obj.preview_buf, 0, -1, false, preview_lines)
+    vim.api.nvim_buf_set_option(state_obj.preview_buf, 'modifiable', false)
+  end)
+end
+
+-- Toggle preview pane visibility
+local function toggle_preview_pane(state_obj)
+  if not state_obj then
+    return
+  end
+
+  state_obj.preview_hidden = not state_obj.preview_hidden
+
+  if state_obj.preview_hidden then
+    -- Hide the preview window by closing it
+    if vim.api.nvim_win_is_valid(state_obj.preview_win) then
+      pcall(vim.api.nvim_win_close, state_obj.preview_win, true)
+    end
+    vim.notify("Details pane hidden (press 'p' to show)", vim.log.levels.INFO)
+  else
+    -- Show the preview window again
+    if not vim.api.nvim_win_is_valid(state_obj.list_win) then
+      return
+    end
+
+    -- Recreate preview buffer if it was wiped
+    if not vim.api.nvim_buf_is_valid(state_obj.preview_buf) then
+      state_obj.preview_buf = vim.api.nvim_create_buf(false, true)
+      pcall(function()
+        vim.api.nvim_buf_set_option(state_obj.preview_buf, 'buftype', 'nofile')
+        vim.api.nvim_buf_set_option(state_obj.preview_buf, 'swapfile', false)
+        vim.api.nvim_buf_set_option(state_obj.preview_buf, 'bufhidden', 'wipe')
+      end)
+    end
+
+    -- Make sure we're in the list window
+    pcall(vim.api.nvim_set_current_win, state_obj.list_win)
+
+    -- Create a new vertical split for the preview
+    vim.cmd('vsplit')
+
+    -- Move to the new window (right split)
+    vim.cmd('wincmd l')
+    local new_preview_win = vim.api.nvim_get_current_win()
+
+    -- Set the preview buffer in the new window
+    if vim.api.nvim_buf_is_valid(state_obj.preview_buf) then
+      pcall(vim.api.nvim_win_set_buf, new_preview_win, state_obj.preview_buf)
+    end
+
+    -- Update the preview window reference
+    state_obj.preview_win = new_preview_win
+
+    -- Restore split ratio
+    local cfg = require("todoist.config").get()
+    local custom_cfg = cfg.custom_ui or {}
+    local split_ratio = custom_cfg.split_ratio or 0.6
+    local total_width = vim.o.columns
+    local list_width = math.floor(total_width * split_ratio)
+    local preview_width = total_width - list_width
+
+    -- Set both window widths explicitly
+    pcall(vim.api.nvim_win_set_width, state_obj.list_win, list_width)
+    pcall(vim.api.nvim_win_set_width, new_preview_win, preview_width)
+
+    -- Set window options for new preview window
+    if vim.api.nvim_win_is_valid(new_preview_win) then
+      pcall(function()
+        vim.api.nvim_win_set_option(new_preview_win, 'number', false)
+        vim.api.nvim_win_set_option(new_preview_win, 'relativenumber', false)
+        vim.api.nvim_win_set_option(new_preview_win, 'wrap', true)
+      end)
+    end
+
+    -- Focus back on list window
+    pcall(vim.api.nvim_set_current_win, state_obj.list_win)
+
+    -- Update the preview content
+    update_preview(state_obj)
+
+    vim.notify("Details pane visible", vim.log.levels.INFO)
+  end
 end
 
 -- Move cursor with smart navigation (skip headers/separators)
@@ -692,6 +786,77 @@ local function refresh_ui(state_obj)
   end)
 end
 
+-- Refresh data with loader
+local function refresh_with_loader(state_obj)
+  -- Guard against concurrent refreshes
+  if state_obj.is_loading then
+    vim.notify("Refresh already in progress...", vim.log.levels.INFO)
+    return
+  end
+
+  state_obj.is_loading = true
+
+  -- Start loader
+  local loader = require("todoist.loader")
+  state_obj.loader_id = loader.create_loader({
+    ui_type = "custom",
+    buffer = state_obj.list_buf,
+    message = "Refreshing tasks...",
+  })
+  loader.start(state_obj.loader_id)
+
+  -- Get token
+  local auth = require("todoist.auth")
+  local token = auth.load_token()
+
+  if not token then
+    loader.stop(state_obj.loader_id)
+    state_obj.is_loading = false
+    vim.notify("No token found", vim.log.levels.ERROR)
+    return
+  end
+
+  -- Fetch tasks and projects
+  local client = require("todoist.client")
+
+  client.fetch_tasks(token, { filter = "today" }, function(err, tasks)
+    if err then
+      loader.stop(state_obj.loader_id)
+      state_obj.is_loading = false
+      vim.notify("Failed to fetch tasks: " .. err, vim.log.levels.ERROR)
+      return
+    end
+
+    client.fetch_projects(token, function(project_err, projects)
+      -- Stop loader
+      loader.stop(state_obj.loader_id)
+      state_obj.is_loading = false
+
+      if project_err then
+        vim.notify("Warning: Failed to fetch projects: " .. project_err, vim.log.levels.WARN)
+      end
+
+      -- Build project lookup
+      local project_lookup = {}
+      if projects then
+        for _, project in ipairs(projects) do
+          project_lookup[project.id] = project
+        end
+      end
+
+      -- Update state with fresh data
+      state_obj.tasks = tasks or {}
+      state_obj.filtered_tasks = tasks or {}
+      state_obj.project_lookup = project_lookup
+
+      -- Re-render UI in-place using existing function
+      refresh_ui(state_obj)
+
+      vim.notify("Tasks refreshed", vim.log.levels.INFO)
+    end)
+  end)
+end
+
 -- Enter search mode
 local function enter_search_mode(state_obj)
   state_obj.search_mode = true
@@ -705,7 +870,7 @@ local function enter_search_mode(state_obj)
   local buf = state_obj.list_buf
 
   -- Character input for search
-  for i = 32, 126 do  -- Printable ASCII characters
+  for i = 32, 126 do -- Printable ASCII characters
     local char = string.char(i)
     vim.keymap.set('n', char, function()
       state_obj.search_query = state_obj.search_query .. char
@@ -733,8 +898,8 @@ local function enter_search_mode(state_obj)
     -- Just close search prompt, keep filtered results
     state_obj.search_mode = false
     refresh_ui(state_obj)
-    setup_navigation(state_obj)  -- Restore navigation
-    setup_actions(state_obj)     -- Restore actions
+    setup_navigation(state_obj) -- Restore navigation
+    setup_actions(state_obj)    -- Restore actions
   end, { buffer = buf, noremap = true, silent = true })
 end
 
@@ -786,6 +951,12 @@ local function setup_autocmds(state_obj)
     group = augroup,
     buffer = state_obj.list_buf,
     callback = function()
+      -- Stop loader if running
+      if state_obj.loader_id then
+        local loader = require("todoist.loader")
+        loader.stop(state_obj.loader_id)
+      end
+      -- Close preview window
       if state_obj.preview_win and vim.api.nvim_win_is_valid(state_obj.preview_win) then
         vim.api.nvim_win_close(state_obj.preview_win, true)
       end
@@ -877,19 +1048,8 @@ local function handle_action(state_obj, action_type)
             return
           end
           vim.notify("Task deleted", vim.log.levels.INFO)
-          if state_obj.on_refresh then
-            -- Close UI and trigger refresh
-            if state_obj.augroup then
-              vim.api.nvim_del_augroup_by_id(state_obj.augroup)
-            end
-            if vim.api.nvim_win_is_valid(state_obj.list_win) then
-              vim.api.nvim_win_close(state_obj.list_win, true)
-            end
-            if vim.api.nvim_win_is_valid(state_obj.preview_win) then
-              vim.api.nvim_win_close(state_obj.preview_win, true)
-            end
-            state_obj.on_refresh()
-          end
+          -- Refresh in-place instead of closing windows
+          refresh_with_loader(state_obj)
         end)
       end
     )
@@ -913,19 +1073,8 @@ function update_task_field(task_id, updates, state_obj)
       return
     end
     vim.notify("Task updated", vim.log.levels.INFO)
-    if state_obj.on_refresh then
-      -- Close UI and trigger refresh
-      if state_obj.augroup then
-        vim.api.nvim_del_augroup_by_id(state_obj.augroup)
-      end
-      if vim.api.nvim_win_is_valid(state_obj.list_win) then
-        vim.api.nvim_win_close(state_obj.list_win, true)
-      end
-      if vim.api.nvim_win_is_valid(state_obj.preview_win) then
-        vim.api.nvim_win_close(state_obj.preview_win, true)
-      end
-      state_obj.on_refresh()
-    end
+    -- Refresh in-place instead of closing windows
+    refresh_with_loader(state_obj)
   end)
 end
 
@@ -950,24 +1099,17 @@ function setup_actions(state_obj)
 
   -- Refresh (Ctrl-r)
   vim.keymap.set('n', '<C-r>', function()
-    if state_obj.on_refresh then
-      -- Close UI and trigger refresh
-      if state_obj.augroup then
-        vim.api.nvim_del_augroup_by_id(state_obj.augroup)
-      end
-      if vim.api.nvim_win_is_valid(state_obj.list_win) then
-        vim.api.nvim_win_close(state_obj.list_win, true)
-      end
-      if vim.api.nvim_win_is_valid(state_obj.preview_win) then
-        vim.api.nvim_win_close(state_obj.preview_win, true)
-      end
-      state_obj.on_refresh()
-    end
+    refresh_with_loader(state_obj)
   end, { buffer = buf, noremap = true, silent = true })
 
   -- Search mode (/)
   vim.keymap.set('n', '/', function()
     enter_search_mode(state_obj)
+  end, { buffer = buf, noremap = true, silent = true })
+
+  -- Toggle preview pane (p)
+  vim.keymap.set('n', 'p', function()
+    toggle_preview_pane(state_obj)
   end, { buffer = buf, noremap = true, silent = true })
 end
 
@@ -1013,6 +1155,9 @@ function M.show_today(tasks, opts)
     project_lookup = project_lookup,
     search_mode = false,
     search_query = "",
+    preview_hidden = false,
+    is_loading = false,
+    loader_id = nil,
     on_refresh = opts.on_refresh,
     on_complete = opts.on_complete,
   }
@@ -1032,20 +1177,32 @@ function M.show_today(tasks, opts)
 
   -- Setup close keymap
   vim.keymap.set('n', 'q', function()
+    -- Cleanup autocmds
     if state.augroup then
-      vim.api.nvim_del_augroup_by_id(state.augroup)
+      pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
     end
-    if vim.api.nvim_win_is_valid(state.list_win) then
-      vim.api.nvim_win_close(state.list_win, true)
-    end
+
+    -- Close preview window first (if it exists and is valid)
     if vim.api.nvim_win_is_valid(state.preview_win) then
-      vim.api.nvim_win_close(state.preview_win, true)
+      pcall(vim.api.nvim_win_close, state.preview_win, true)
+    end
+
+    -- Close list window or quit if it's the last window
+    if vim.api.nvim_win_is_valid(state.list_win) then
+      -- Check if this is the last window
+      local win_count = #vim.api.nvim_list_wins()
+      if win_count <= 1 then
+        -- Last window, use quit instead of close
+        vim.cmd('quit')
+      else
+        pcall(vim.api.nvim_win_close, state.list_win, true)
+      end
     end
   end, { buffer = layout.list_buf, noremap = true, silent = true })
 
   -- Position cursor on first task and show preview
   vim.schedule(function()
-    move_cursor(state, 0)  -- Find first task
+    move_cursor(state, 0) -- Find first task
     update_preview(state)
   end)
 end
