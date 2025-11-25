@@ -1,4 +1,4 @@
-# nvim-todoist
+# todoist.nvim
 
 A minimal Todoist client for Neovim. Fetch, add, and complete tasks from Todoist without leaving your editor.
 
@@ -17,7 +17,7 @@ Lazy.nvim example:
 
 ```lua
 {
-  "mshiyaf/nvim-todoist",
+  "mshiyaf/todoist.nvim",
   config = function()
     require("nvim_todoist").setup({
       -- optional overrides
@@ -32,7 +32,7 @@ Packer example:
 
 ```lua
 use({
-  "mshiyaf/nvim-todoist",
+  "mshiyaf/todoist.nvim",
   config = function()
     require("nvim_todoist").setup()
   end,
