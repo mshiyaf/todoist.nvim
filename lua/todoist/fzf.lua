@@ -27,40 +27,45 @@ local function parse_task_from_entry(entry)
 end
 
 local function create_previewer(task_map)
-  return {
-    type = "cmd",
-    fn = function(selected)
-      local parsed = parse_task_from_entry(selected[1])
-      if not parsed then return "Invalid task" end
+  return function(selected)
+    local parsed = parse_task_from_entry(selected[1])
+    if not parsed then return "echo 'Invalid task'" end
 
-      local task = task_map[tostring(parsed.id)]
-      if not task then return "Task not found" end
+    local task = task_map[tostring(parsed.id)]
+    if not task then return "echo 'Task not found'" end
 
-      local due_str = "None"
-      if task.due and type(task.due) == "table" then
-        due_str = task.due.string or task.due.date or "None"
-      end
+    local due_str = "None"
+    if task.due and type(task.due) == "table" then
+      due_str = task.due.string or task.due.date or "None"
+    end
 
-      local lines = {
-        "╔══════════════════════════════════════╗",
-        "║          TASK DETAILS                ║",
-        "╚══════════════════════════════════════╝",
-        "",
-        "ID:       " .. (task.id or "N/A"),
-        "Content:  " .. (task.content or "N/A"),
-        "Priority: " .. (task.priority and ("P" .. task.priority) or "None"),
-        "Due:      " .. due_str,
-        "Project:  " .. (task.project_id or "Inbox"),
-        "Created:  " .. (task.created_at or "Unknown"),
-        "",
-        "Description:",
-        "──────────────────────────────────────",
-        task.description or "(no description)",
-      }
+    local content = string.format([[
+╔══════════════════════════════════════╗
+║          TASK DETAILS                ║
+╚══════════════════════════════════════╝
 
-      return table.concat(lines, "\n")
-    end,
-  }
+ID:       %s
+Content:  %s
+Priority: %s
+Due:      %s
+Project:  %s
+Created:  %s
+
+Description:
+──────────────────────────────────────
+%s]],
+      task.id or "N/A",
+      task.content or "N/A",
+      task.priority and ("P" .. task.priority) or "None",
+      due_str,
+      task.project_id or "Inbox",
+      task.created_at or "Unknown",
+      task.description or "(no description)")
+
+    -- Escape single quotes for shell command
+    content = content:gsub("'", "'\\''")
+    return string.format("echo '%s'", content)
+  end
 end
 
 local function handle_complete(entry, task_map, opts)
@@ -361,7 +366,7 @@ function M.show_tasks(tasks, opts)
   fzf.fzf_exec(entries, {
     prompt = "Todoist> ",
     winopts = cfg.fzf.winopts,
-    previewer = create_previewer(task_map),
+    preview = create_previewer(task_map),
     actions = create_actions(task_map, opts),
     fzf_opts = {
       ["--no-multi"] = "",
