@@ -11,7 +11,7 @@ local function format_task_entry(task)
     table.insert(parts, string.format("[P%d]", task.priority))
   end
 
-  if task.due and task.due.date then
+  if task.due and type(task.due) == "table" and task.due.date then
     table.insert(parts, string.format("[%s]", task.due.date))
   end
 
@@ -36,6 +36,11 @@ local function create_previewer(task_map)
       local task = task_map[tostring(parsed.id)]
       if not task then return "Task not found" end
 
+      local due_str = "None"
+      if task.due and type(task.due) == "table" then
+        due_str = task.due.string or task.due.date or "None"
+      end
+
       local lines = {
         "╔══════════════════════════════════════╗",
         "║          TASK DETAILS                ║",
@@ -44,7 +49,7 @@ local function create_previewer(task_map)
         "ID:       " .. (task.id or "N/A"),
         "Content:  " .. (task.content or "N/A"),
         "Priority: " .. (task.priority and ("P" .. task.priority) or "None"),
-        "Due:      " .. (task.due and task.due.string or "None"),
+        "Due:      " .. due_str,
         "Project:  " .. (task.project_id or "Inbox"),
         "Created:  " .. (task.created_at or "Unknown"),
         "",
@@ -75,13 +80,18 @@ local function handle_view_details(entry, task_map)
   local task = task_map[tostring(parsed.id)]
   if not task then return end
 
+  local due_info = "None"
+  if task.due and type(task.due) == "table" then
+    due_info = task.due.string or task.due.date or "None"
+  end
+
   local lines = {
     "Task: " .. (task.content or ""),
     "",
     "Details:",
     "  ID: " .. (task.id or ""),
     "  Priority: " .. (task.priority or "None"),
-    "  Due: " .. (task.due and task.due.string or "None"),
+    "  Due: " .. due_info,
     "  Project: " .. (task.project_id or "Inbox"),
     "",
     "Description:",
@@ -142,7 +152,10 @@ local function edit_content(task, opts)
 end
 
 local function edit_due_date(task, opts)
-  local default = task.due and task.due.string or ""
+  local default = ""
+  if task.due and type(task.due) == "table" then
+    default = task.due.string or task.due.date or ""
+  end
   vim.ui.input(
     { prompt = "Due (e.g. 'tomorrow', '2024-12-31'): ", default = default },
     function(due)
@@ -290,13 +303,13 @@ local function filter_by_date(tasks, filter_type)
     local include = false
 
     if filter_type == "today" then
-      include = task.due and is_today(task.due.date)
+      include = task.due and type(task.due) == "table" and is_today(task.due.date)
     elseif filter_type == "overdue" then
-      include = task.due and is_overdue(task.due.date, now)
+      include = task.due and type(task.due) == "table" and is_overdue(task.due.date, now)
     elseif filter_type == "week" then
-      include = task.due and is_within_week(task.due.date, now)
+      include = task.due and type(task.due) == "table" and is_within_week(task.due.date, now)
     elseif filter_type == "none" then
-      include = not task.due
+      include = not task.due or type(task.due) ~= "table"
     end
 
     if include then
