@@ -142,6 +142,34 @@ local function format_today_entry(task, opts)
   }, "  ")
 end
 
+local function format_task_preview(task, opts)
+  local project = resolve_project(task, opts and opts.project_lookup or {})
+  local priority = task.priority or 1
+  local due = ""
+  if task.due and type(task.due) == "table" then
+    due = task.due.string or task.due.datetime or task.due.date or ""
+  end
+
+  local lines = {
+    colorize(task.content or "(no content)", priority_colors[priority] or priority_colors[1]),
+    string.rep("─", 40),
+    string.format("ID       : %s", task.id or "?"),
+    string.format("Priority : %s", colorize("P" .. priority, priority_colors[priority] or priority_colors[1])),
+    string.format("Project  : %s", colorize(project.name or "Project", project.color)),
+    string.format("Due      : %s", due ~= "" and due or "None"),
+  }
+
+  if task.description and task.description ~= "" then
+    table.insert(lines, "")
+    table.insert(lines, "Description:")
+    for line in (task.description .. "\n"):gmatch("([^\n]*)\n") do
+      table.insert(lines, "  " .. line)
+    end
+  end
+
+  return table.concat(lines, "\n")
+end
+
 local function parse_task_from_entry(entry)
   local id = entry:match("%[ID:(%d+)%]")
   if not id then return nil end
@@ -463,6 +491,42 @@ local function prepare_tasks(tasks, sorter)
   return list
 end
 
+local function create_previewer(task_map, opts)
+  local ok, builtin = pcall(require, "fzf-lua.previewer.builtin")
+  if not ok or not builtin or not builtin.buffer_or_file or not builtin.buffer_or_file.extend then
+    return nil
+  end
+
+  local previewer = builtin.buffer_or_file:extend()
+
+  function previewer:new(o, opts_tbl, fzf_win)
+    previewer.super.new(self, o, opts_tbl, fzf_win)
+    self.title = "Todoist"
+    setmetatable(self, previewer)
+    return self
+  end
+
+  function previewer:parse_entry(entry_str)
+    local parsed = parse_task_from_entry(entry_str or "")
+    if not parsed then return nil end
+    return task_map[tostring(parsed.id)]
+  end
+
+  function previewer:populate_preview_buf(entry_str)
+    local task = self:parse_entry(entry_str)
+    local buf = self:get_tmp_buffer()
+    local text = task and format_task_preview(task, opts) or "No task selected"
+    local lines = vim.split(text, "\n", { plain = true })
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    self:set_preview_buf(buf)
+    if self.win and self.win.update_scrollbar then
+      self.win:update_scrollbar()
+    end
+  end
+
+  return previewer
+end
+
 local function open_picker(tasks, opts)
   local ok, fzf = pcall(require, "fzf-lua")
   if not ok then
@@ -485,10 +549,23 @@ local function open_picker(tasks, opts)
     ["--layout"] = "reverse",
   }, opts.fzf_opts)
 
+  local previewer = nil
+  if opts.preview or opts.previewer then
+    previewer = opts.previewer or create_previewer(task_map, opts)
+    if previewer == nil then
+      -- If we can't build a previewer, disable preview to avoid fzf errors.
+      opts.preview = false
+      previewer = nil
+    end
+  end
+
+  local winopts = opts.winopts or cfg.fzf.winopts
+
   fzf.fzf_exec(entries, {
     prompt = opts.prompt or "Todoist> ",
-    winopts = opts.winopts or cfg.fzf.winopts,
+    winopts = winopts,
     actions = create_actions(task_map, opts),
+    previewer = previewer,
     fzf_opts = fzf_opts,
   })
 end
@@ -547,6 +624,7 @@ end
 
 function M.show_today(tasks, opts)
   opts = opts or {}
+  local cfg = require("todoist.config").get()
   opts.project_lookup = opts.project_lookup or build_project_lookup(opts.projects)
   opts.prompt = opts.prompt or "Todoist Today> "
   opts.sorter = opts.sorter or today_sorter(opts.project_lookup)
@@ -554,6 +632,19 @@ function M.show_today(tasks, opts)
     return format_today_entry(task, opts)
   end
   opts.fzf_opts = merge_tables({ ["--ansi"] = "" }, opts.fzf_opts)
+  local preview_cfg = cfg.fzf.preview or {}
+  local preview_enabled = opts.preview
+  if preview_enabled == nil then
+    if preview_cfg.today == nil then
+      preview_enabled = false
+    else
+      preview_enabled = preview_cfg.today ~= false
+    end
+  end
+  opts.preview = preview_enabled
+  if preview_enabled then
+    opts.winopts = opts.winopts or vim.tbl_deep_extend("force", {}, cfg.fzf.winopts or {}, preview_cfg.today_winopts or {})
+  end
 
   open_picker(tasks or {}, opts)
 end

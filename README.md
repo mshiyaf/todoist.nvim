@@ -6,7 +6,7 @@ A powerful Todoist client for Neovim with fuzzy search powered by fzf-lua. Manag
 - **fzf-lua integration** for powerful fuzzy search and filtering
 - **Full task management**: View, create, edit, complete, and delete tasks
 - **Advanced filtering**: Filter by project, priority, and due date
-- **Colorful Today view**: Prioritized Today list with project tags and highlights
+- **Colorful Today view**: Prioritized Today list with project tags and highlights (with inline preview)
 - **Live preview**: See full task details in real-time preview pane
 - **Secure token handling** (env var or permissioned file with `0600` under `stdpath('data')/todoist/token`)
 - **Async API calls** via `curl` with no external dependencies

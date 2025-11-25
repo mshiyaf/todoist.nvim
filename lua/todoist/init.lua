@@ -82,21 +82,42 @@ local function refresh_today_view()
     return
   end
 
+  local cfg = config.get()
+  local use_custom_ui = cfg.today_view_ui == "custom"
+
   local function open_today(tasks, projects)
-    fzf.show_today(tasks or {}, {
-      projects = projects,
-      on_refresh = refresh_today_view,
-      on_complete = function(task)
-        M.complete_task(task.id, function(close_err)
-          if close_err then
-            notify(close_err, vim.log.levels.ERROR)
-            return
-          end
-          notify(string.format("Completed task %s", task.content))
-          refresh_today_view()
-        end)
-      end,
-    })
+    if use_custom_ui then
+      local custom_ui = require("todoist.custom_ui")
+      custom_ui.show_today(tasks or {}, {
+        projects = projects,
+        on_refresh = refresh_today_view,
+        on_complete = function(task)
+          M.complete_task(task.id, function(close_err)
+            if close_err then
+              notify(close_err, vim.log.levels.ERROR)
+              return
+            end
+            notify(string.format("Completed task %s", task.content))
+            refresh_today_view()
+          end)
+        end,
+      })
+    else
+      fzf.show_today(tasks or {}, {
+        projects = projects,
+        on_refresh = refresh_today_view,
+        on_complete = function(task)
+          M.complete_task(task.id, function(close_err)
+            if close_err then
+              notify(close_err, vim.log.levels.ERROR)
+              return
+            end
+            notify(string.format("Completed task %s", task.content))
+            refresh_today_view()
+          end)
+        end,
+      })
+    end
   end
 
   client.fetch_tasks(token, { filter = "today" }, function(err, tasks)

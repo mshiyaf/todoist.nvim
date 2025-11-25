@@ -40,6 +40,22 @@ local defaults = {
     show_priority = true,
     show_due_date = true,
   },
+  today_view_ui = "custom",  -- "custom" or "fzf"
+  custom_ui = {
+    split_ratio = 0.6,  -- List window width percentage
+    enable_fuzzy_search = true,
+    show_priority_headers = true,
+    auto_preview = true,
+    highlights = {
+      priority_4 = { fg = "#ff5555", bold = true },
+      priority_3 = { fg = "#ffb86c", bold = true },
+      priority_2 = { fg = "#8be9fd" },
+      priority_1 = { fg = "#6272a4" },
+      header = { fg = "#f8f8f2", bold = true },
+      project = { fg = "#50fa7b", italic = true },
+      due_time = { fg = "#ff79c6" },
+    },
+  },
 }
 
 local state = vim.deepcopy(defaults)
