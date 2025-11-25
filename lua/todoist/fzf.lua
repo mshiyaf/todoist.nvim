@@ -26,50 +26,6 @@ local function parse_task_from_entry(entry)
   return { id = id }
 end
 
-local preview_file = vim.fn.tempname()
-
-local function create_preview_command(task_map)
-  return function(items)
-    local entry = items[1]
-    local parsed = parse_task_from_entry(entry)
-
-    if not parsed then
-      vim.fn.writefile({"Invalid task"}, preview_file)
-      return "cat " .. preview_file
-    end
-
-    local task = task_map[tostring(parsed.id)]
-    if not task then
-      vim.fn.writefile({"Task not found"}, preview_file)
-      return "cat " .. preview_file
-    end
-
-    local due_str = "None"
-    if task.due and type(task.due) == "table" then
-      due_str = task.due.string or task.due.date or "None"
-    end
-
-    local lines = {
-      "╔══════════════════════════════════════╗",
-      "║          TASK DETAILS                ║",
-      "╚══════════════════════════════════════╝",
-      "",
-      "ID:       " .. (task.id or "N/A"),
-      "Content:  " .. (task.content or "N/A"),
-      "Priority: " .. (task.priority and ("P" .. task.priority) or "None"),
-      "Due:      " .. due_str,
-      "Project:  " .. (task.project_id or "Inbox"),
-      "Created:  " .. (task.created_at or "Unknown"),
-      "",
-      "Description:",
-      "──────────────────────────────────────",
-      task.description or "(no description)",
-    }
-
-    vim.fn.writefile(lines, preview_file)
-    return "cat " .. preview_file
-  end
-end
 
 local function handle_complete(entry, task_map, opts)
   local parsed = parse_task_from_entry(entry)
@@ -369,7 +325,6 @@ function M.show_tasks(tasks, opts)
   fzf.fzf_exec(entries, {
     prompt = "Todoist> ",
     winopts = cfg.fzf.winopts,
-    preview = create_preview_command(task_map),
     actions = create_actions(task_map, opts),
     fzf_opts = {
       ["--no-multi"] = "",
