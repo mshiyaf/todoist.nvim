@@ -56,6 +56,67 @@ In the task window:
 - `c` or `<CR>` close the task under the cursor
 - `q` close the window
 
+## Keybindings
+
+By default, todoist.nvim sets up the following global keymaps:
+
+- `<leader>tt` – Open Todoist tasks window
+- `<leader>ta` – Add a new Todoist task
+- `<leader>tl` – Login to Todoist
+- `<leader>tL` – Logout from Todoist
+
+(In LazyVim, `<leader>` is `<space>`, so `<leader>tt` is `<space>tt`)
+
+In the tasks window:
+- `r` – Refresh tasks
+- `c` or `<CR>` – Complete task under cursor
+- `q` – Close window
+
+### Customizing Keymaps
+
+Disable automatic keymaps if you prefer manual setup:
+
+```lua
+require("todoist").setup({
+  keymaps = { enable = false }
+})
+```
+
+Customize specific keymaps:
+
+```lua
+require("todoist").setup({
+  keymaps = {
+    mappings = {
+      open_tasks = "<leader>ot",  -- Custom mapping
+      add_task = "<leader>oa",
+      login = false,              -- Disable this keymap
+      logout = false,
+    }
+  }
+})
+```
+
+### LazyVim Integration
+
+The plugin automatically integrates with which-key. Press `<leader>t` to see available Todoist commands in the which-key popup.
+
+For better group naming in which-key, add this to your config:
+
+```lua
+{
+  "mshiyaf/todoist.nvim",
+  config = function()
+    require("todoist").setup()
+
+    -- Optional: Add group name for which-key
+    require("which-key").add({
+      { "<leader>t", group = "todoist" }
+    })
+  end,
+}
+```
+
 ## Configuration
 All options are passed to `require("todoist").setup({ ... })`:
 
@@ -65,6 +126,13 @@ All options are passed to `require("todoist").setup({ ... })`:
 - `notify` (function) – custom notification handler (defaults to `vim.notify`).
 - `data_dir` (string) – where the token file is stored (defaults to `stdpath('data')/todoist`).
 - `api_base` (string) – Todoist REST base URL (defaults to `https://api.todoist.com/rest/v2`).
+- **`keymaps`** (table) – keymap configuration:
+  - `enable` (boolean) – enable/disable automatic keymaps (default: `true`)
+  - `mappings` (table) – custom keymap definitions:
+    - `open_tasks` (string|false) – open tasks window (default: `"<leader>tt"`)
+    - `add_task` (string|false) – add task (default: `"<leader>ta"`)
+    - `login` (string|false) – login (default: `"<leader>tl"`)
+    - `logout` (string|false) – logout (default: `"<leader>tL"`)
 
 ## Security Notes
 - Tokens are never echoed; `:TodoistLogin` uses `vim.ui.input` with `secret=true`.

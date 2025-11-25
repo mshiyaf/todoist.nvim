@@ -8,6 +8,15 @@ local defaults = {
   default_priority = nil,
   curl_bin = "curl",
   notify = vim.notify,
+  keymaps = {
+    enable = true,
+    mappings = {
+      open_tasks = "<leader>tt",
+      add_task = "<leader>ta",
+      login = "<leader>tl",
+      logout = "<leader>tL",
+    }
+  },
 }
 
 local state = vim.deepcopy(defaults)

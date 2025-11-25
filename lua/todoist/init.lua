@@ -55,6 +55,11 @@ end
 
 function M.setup(opts)
   config.setup(opts)
+
+  -- Setup keymaps if enabled
+  local keymaps = require("todoist.keymaps")
+  local cfg = config.get()
+  keymaps.setup(cfg.keymaps)
 end
 
 function M.login()
