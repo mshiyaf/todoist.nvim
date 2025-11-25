@@ -1,23 +1,145 @@
 local M = {}
 
+local priority_colors = {
+  [4] = 196, -- urgent
+  [3] = 208, -- high
+  [2] = 39,  -- medium
+  [1] = 245, -- normal
+}
+
+local project_color_map = {
+  berry_red = 161,
+  red = 196,
+  orange = 208,
+  yellow = 226,
+  olive_green = 100,
+  lime_green = 118,
+  green = 34,
+  mint_green = 121,
+  teal = 30,
+  sky_blue = 81,
+  light_blue = 39,
+  blue = 27,
+  grape = 171,
+  violet = 135,
+  lavender = 183,
+  magenta = 201,
+  salmon = 209,
+  charcoal = 240,
+  grey = 247,
+  taupe = 244,
+}
+
+local function colorize(text, color_code)
+  if not color_code then return text end
+  return string.format("\27[38;5;%sm%s\27[0m", color_code, text)
+end
+
+local function project_color_to_ansi(color)
+  if not color then return nil end
+  if type(color) == "number" then
+    return color
+  end
+  return project_color_map[color]
+end
+
+local function build_project_lookup(projects)
+  local lookup = {}
+
+  if projects then
+    for _, project in ipairs(projects) do
+      if project.id then
+        lookup[tostring(project.id)] = {
+          name = project.name or ("Project " .. project.id),
+          color = project_color_to_ansi(project.color),
+        }
+      end
+    end
+  end
+
+  lookup.inbox = lookup.inbox or { name = "Inbox", color = project_color_to_ansi("charcoal") }
+  return lookup
+end
+
+local function resolve_project(task, lookup)
+  local fallback = {
+    name = task.project_id and ("Project " .. task.project_id) or "Inbox",
+    color = project_color_to_ansi("charcoal"),
+  }
+
+  if not lookup then
+    return fallback
+  end
+
+  local project = lookup[tostring(task.project_id)]
+  if project then
+    return {
+      name = project.name or fallback.name,
+      color = project.color or fallback.color,
+    }
+  end
+
+  if not task.project_id and lookup.inbox then
+    return {
+      name = lookup.inbox.name or fallback.name,
+      color = lookup.inbox.color or fallback.color,
+    }
+  end
+
+  return fallback
+end
+
 local function format_task_entry(task)
+  local cfg = require("todoist.config").get()
+  local fmt_cfg = cfg.task_format or {}
   local parts = {}
 
-  if task.id then
+  if fmt_cfg.show_id ~= false and task.id then
     table.insert(parts, string.format("[ID:%s]", task.id))
   end
 
-  if task.priority then
+  if fmt_cfg.show_priority ~= false and task.priority then
     table.insert(parts, string.format("[P%d]", task.priority))
   end
 
-  if task.due and type(task.due) == "table" and task.due.date then
+  if fmt_cfg.show_due_date ~= false and task.due and type(task.due) == "table" and task.due.date then
     table.insert(parts, string.format("[%s]", task.due.date))
   end
 
   table.insert(parts, task.content or "(no content)")
 
   return table.concat(parts, " ")
+end
+
+local function format_today_entry(task, opts)
+  local project_lookup = opts and opts.project_lookup or {}
+  local project = resolve_project(task, project_lookup)
+  local priority = task.priority or 1
+
+  local id_part = string.format("[ID:%s]", task.id or "?")
+  local priority_part = colorize(string.format("[P%d]", priority), priority_colors[priority] or priority_colors[1])
+  local project_part = colorize("#" .. (project.name or "Project"), project.color)
+
+  local due_suffix = ""
+  if task.due and type(task.due) == "table" then
+    local time = nil
+    if task.due.datetime then
+      time = task.due.datetime:match("T(%d%d:%d%d)")
+    end
+    local label = time or task.due.string or task.due.date
+    if label and label ~= "" then
+      due_suffix = " @" .. label
+    end
+  end
+
+  local content = task.content or "(no content)"
+
+  return table.concat({
+    id_part,
+    priority_part,
+    project_part,
+    content .. due_suffix,
+  }, "  ")
 end
 
 local function parse_task_from_entry(entry)
@@ -37,7 +159,16 @@ local function handle_complete(entry, task_map, opts)
   end
 end
 
-local function handle_view_details(entry, task_map, fzf_resume_fn)
+local function project_label(task, opts)
+  if not opts or not opts.project_lookup then
+    return task.project_id or "Inbox"
+  end
+
+  local project = resolve_project(task, opts.project_lookup)
+  return project.name or task.project_id or "Inbox"
+end
+
+local function handle_view_details(entry, task_map, opts, fzf_resume_fn)
   local parsed = parse_task_from_entry(entry)
   if not parsed then return end
 
@@ -56,7 +187,7 @@ local function handle_view_details(entry, task_map, fzf_resume_fn)
     "  ID: " .. (task.id or ""),
     "  Priority: " .. (task.priority or "None"),
     "  Due: " .. due_info,
-    "  Project: " .. (task.project_id or "Inbox"),
+    "  Project: " .. project_label(task, opts),
     "",
     "Description:",
     task.description or "(none)",
@@ -213,7 +344,7 @@ local function create_actions(task_map, opts)
       handle_complete(selected[1], task_map, opts)
     end,
     [cfg.fzf.keybinds.view_details] = function(selected, fzf_opts)
-      handle_view_details(selected[1], task_map, function()
+      handle_view_details(selected[1], task_map, opts, function()
         fzf.resume()
       end)
       return false  -- Keep picker open
@@ -256,7 +387,7 @@ end
 local function filter_by_priority(tasks, priority)
   if not priority then return tasks end
   local filtered = {}
-  for _, task in ipairs(tasks) do
+  for _, task in ipairs(tasks or {}) do
     if task.priority == priority then
       table.insert(filtered, task)
     end
@@ -270,7 +401,7 @@ local function filter_by_date(tasks, filter_type)
   local now = os.time()
   local filtered = {}
 
-  for _, task in ipairs(tasks) do
+  for _, task in ipairs(tasks or {}) do
     local include = false
 
     if filter_type == "today" then
@@ -291,9 +422,80 @@ local function filter_by_date(tasks, filter_type)
   return filtered
 end
 
+local function merge_tables(base, extra)
+  local result = {}
+
+  if base then
+    for k, v in pairs(base) do
+      result[k] = v
+    end
+  end
+
+  if extra then
+    for k, v in pairs(extra) do
+      result[k] = v
+    end
+  end
+
+  return result
+end
+
+local function build_entries(tasks, formatter, opts)
+  local entries = {}
+  local task_map = {}
+
+  for _, task in ipairs(tasks or {}) do
+    local entry = formatter(task, opts)
+    table.insert(entries, entry)
+    if task.id then
+      task_map[tostring(task.id)] = task
+    end
+  end
+
+  return entries, task_map
+end
+
+local function prepare_tasks(tasks, sorter)
+  local list = vim.deepcopy(tasks or {})
+  if sorter then
+    pcall(table.sort, list, sorter)
+  end
+  return list
+end
+
+local function open_picker(tasks, opts)
+  local ok, fzf = pcall(require, "fzf-lua")
+  if not ok then
+    error("fzf-lua is required. Install it with your plugin manager.")
+  end
+
+  opts = opts or {}
+  local cfg = require("todoist.config").get()
+  local formatter = opts.format_entry or format_task_entry
+  local sorted_tasks = prepare_tasks(tasks, opts.sorter)
+  local entries, task_map = build_entries(sorted_tasks, formatter, opts)
+
+  if #entries == 0 then
+    vim.notify("No tasks found", vim.log.levels.INFO)
+    return
+  end
+
+  local fzf_opts = merge_tables({
+    ["--no-multi"] = "",
+    ["--layout"] = "reverse",
+  }, opts.fzf_opts)
+
+  fzf.fzf_exec(entries, {
+    prompt = opts.prompt or "Todoist> ",
+    winopts = opts.winopts or cfg.fzf.winopts,
+    actions = create_actions(task_map, opts),
+    fzf_opts = fzf_opts,
+  })
+end
+
 function M.show_tasks_filtered(tasks, opts)
   opts = opts or {}
-  local filtered = tasks
+  local filtered = tasks or {}
 
   if opts.priority_filter then
     filtered = filter_by_priority(filtered, opts.priority_filter)
@@ -307,37 +509,53 @@ function M.show_tasks_filtered(tasks, opts)
 end
 
 function M.show_tasks(tasks, opts)
-  local ok, fzf = pcall(require, "fzf-lua")
-  if not ok then
-    error("fzf-lua is required. Install it with your plugin manager.")
-  end
+  open_picker(tasks or {}, opts)
+end
 
+local function today_sorter(project_lookup)
+  project_lookup = project_lookup or {}
+  return function(a, b)
+    local pa = a.priority or 1
+    local pb = b.priority or 1
+    if pa ~= pb then
+      return pa > pb
+    end
+
+    local proj_a = resolve_project(a, project_lookup)
+    local proj_b = resolve_project(b, project_lookup)
+    local name_a = (proj_a.name or ""):lower()
+    local name_b = (proj_b.name or ""):lower()
+    if name_a ~= name_b then
+      return name_a < name_b
+    end
+
+    local due_a = ""
+    local due_b = ""
+    if a.due and type(a.due) == "table" then
+      due_a = a.due.datetime or a.due.date or ""
+    end
+    if b.due and type(b.due) == "table" then
+      due_b = b.due.datetime or b.due.date or ""
+    end
+    if due_a ~= due_b then
+      return due_a < due_b
+    end
+
+    return (a.id or 0) < (b.id or 0)
+  end
+end
+
+function M.show_today(tasks, opts)
   opts = opts or {}
-  local cfg = require("todoist.config").get()
-
-  local entries = {}
-  local task_map = {}
-
-  for _, task in ipairs(tasks) do
-    local entry = format_task_entry(task)
-    table.insert(entries, entry)
-    task_map[tostring(task.id)] = task
+  opts.project_lookup = opts.project_lookup or build_project_lookup(opts.projects)
+  opts.prompt = opts.prompt or "Todoist Today> "
+  opts.sorter = opts.sorter or today_sorter(opts.project_lookup)
+  opts.format_entry = function(task)
+    return format_today_entry(task, opts)
   end
+  opts.fzf_opts = merge_tables({ ["--ansi"] = "" }, opts.fzf_opts)
 
-  if #entries == 0 then
-    vim.notify("No tasks found", vim.log.levels.INFO)
-    return
-  end
-
-  fzf.fzf_exec(entries, {
-    prompt = "Todoist> ",
-    winopts = cfg.fzf.winopts,
-    actions = create_actions(task_map, opts),
-    fzf_opts = {
-      ["--no-multi"] = "",
-      ["--layout"] = "reverse",
-    },
-  })
+  open_picker(tasks or {}, opts)
 end
 
 return M

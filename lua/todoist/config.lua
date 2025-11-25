@@ -12,6 +12,7 @@ local defaults = {
     enable = true,
     mappings = {
       open_tasks = "<leader>tt",
+      open_today = "<leader>ty",
       add_task = "<leader>ta",
       login = "<leader>tl",
       logout = "<leader>tL",

@@ -6,6 +6,7 @@ A powerful Todoist client for Neovim with fuzzy search powered by fzf-lua. Manag
 - **fzf-lua integration** for powerful fuzzy search and filtering
 - **Full task management**: View, create, edit, complete, and delete tasks
 - **Advanced filtering**: Filter by project, priority, and due date
+- **Colorful Today view**: Prioritized Today list with project tags and highlights
 - **Live preview**: See full task details in real-time preview pane
 - **Secure token handling** (env var or permissioned file with `0600` under `stdpath('data')/todoist/token`)
 - **Async API calls** via `curl` with no external dependencies
@@ -53,6 +54,7 @@ use({
 - `:TodoistLogin` – prompt for an API token and save it securely
 - `:TodoistLogout` – delete the saved token file
 - `:TodoistTasks [project_id]` – open fzf-lua picker with your tasks (filtered by optional project id)
+- `:TodoistToday` – colorized Today view, sorted by priority then project
 - `:TodoistAdd` – interactive prompts to create a new task (uses configured default project/priority)
 - `:TodoistComplete <id>` – close a task by id
 
@@ -72,6 +74,7 @@ When the fzf-lua picker is open, you can use these keybindings:
 By default, todoist.nvim sets up the following global keymaps:
 
 - `<leader>tt` – Open Todoist tasks window
+- `<leader>ty` – Open Todoist Today view (priority + project ordering)
 - `<leader>ta` – Add a new Todoist task
 - `<leader>tl` – Login to Todoist
 - `<leader>tL` – Logout from Todoist
@@ -84,6 +87,10 @@ In the fzf-lua picker:
 - `Ctrl-e` – Edit task (content/due/priority)
 - `Ctrl-x` – Delete task
 - `Ctrl-r` – Refresh task list
+
+### Today View
+
+Use `:TodoistToday` (or `<leader>ty`) for a Today-only picker. Tasks are sorted by priority then project, and entries show colored priority badges plus project tags. Shortcuts match the main fzf view.
 
 ### Customizing Keymaps
 
@@ -102,6 +109,7 @@ require("todoist").setup({
   keymaps = {
     mappings = {
       open_tasks = "<leader>ot",  -- Custom mapping
+      open_today = "<leader>oy",
       add_task = "<leader>oa",
       login = false,              -- Disable this keymap
       logout = false,
@@ -143,6 +151,7 @@ All options are passed to `require("todoist").setup({ ... })`:
   - `enable` (boolean) – enable/disable automatic keymaps (default: `true`)
   - `mappings` (table) – custom keymap definitions:
     - `open_tasks` (string|false) – open tasks window (default: `"<leader>tt"`)
+    - `open_today` (string|false) – open Today view (default: `"<leader>ty"`)
     - `add_task` (string|false) – add task (default: `"<leader>ta"`)
     - `login` (string|false) – login (default: `"<leader>tl"`)
     - `logout` (string|false) – logout (default: `"<leader>tL"`)

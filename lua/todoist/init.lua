@@ -21,6 +21,7 @@ local function get_token()
 end
 
 local function refresh_tasks(opts)
+  opts = opts or {}
   local token = get_token()
   if not token then
     return
@@ -72,6 +73,44 @@ local function refresh_tasks(opts)
         end,
       })
     end
+  end)
+end
+
+local function refresh_today_view()
+  local token = get_token()
+  if not token then
+    return
+  end
+
+  local function open_today(tasks, projects)
+    fzf.show_today(tasks or {}, {
+      projects = projects,
+      on_refresh = refresh_today_view,
+      on_complete = function(task)
+        M.complete_task(task.id, function(close_err)
+          if close_err then
+            notify(close_err, vim.log.levels.ERROR)
+            return
+          end
+          notify(string.format("Completed task %s", task.content))
+          refresh_today_view()
+        end)
+      end,
+    })
+  end
+
+  client.fetch_tasks(token, { filter = "today" }, function(err, tasks)
+    if err then
+      notify(err, vim.log.levels.ERROR)
+      return
+    end
+
+    client.fetch_projects(token, function(project_err, projects)
+      if project_err then
+        notify(project_err, vim.log.levels.WARN)
+      end
+      open_today(tasks, projects or {})
+    end)
   end)
 end
 
@@ -171,6 +210,10 @@ local function setup_commands()
       project_id = tonumber(opts.args) or config.get().default_project,
     })
   end, { nargs = "?" })
+
+  vim.api.nvim_create_user_command("TodoistToday", function()
+    refresh_today_view()
+  end, {})
 
   vim.api.nvim_create_user_command("TodoistAdd", function()
     M.add_task()
