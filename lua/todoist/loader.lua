@@ -108,18 +108,9 @@ function M.stop(loader_id)
     loader.timer = nil
   end
 
-  -- Clear display
-  if loader.ui_type == "custom" and loader.buffer and vim.api.nvim_buf_is_valid(loader.buffer) then
-    vim.schedule(function()
-      pcall(function()
-        vim.api.nvim_buf_set_option(loader.buffer, 'modifiable', true)
-        -- Remove the loader line by clearing just the first line
-        -- refresh_ui will repopulate with actual content
-        vim.api.nvim_buf_set_lines(loader.buffer, 0, 1, false, { "" })
-        vim.api.nvim_buf_set_option(loader.buffer, 'modifiable', false)
-      end)
-    end)
-  end
+  -- No need to clear display here - refresh_ui will repopulate with actual content
+  -- Removing the clear operation prevents race conditions where the scheduled clear
+  -- runs after refresh_ui has already rendered new content
   -- FZF notifications auto-dismiss after timeout, no need to clear
 
   -- Remove from tracking
