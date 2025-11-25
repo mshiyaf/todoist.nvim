@@ -836,13 +836,8 @@ local function refresh_with_loader(state_obj)
         vim.notify("Warning: Failed to fetch projects: " .. project_err, vim.log.levels.WARN)
       end
 
-      -- Build project lookup
-      local project_lookup = {}
-      if projects then
-        for _, project in ipairs(projects) do
-          project_lookup[project.id] = project
-        end
-      end
+      -- Build project lookup using the same function as initial load
+      local project_lookup = build_project_lookup(projects)
 
       -- Update state with fresh data
       state_obj.tasks = tasks or {}
@@ -983,7 +978,17 @@ local function handle_action(state_obj, action_type)
 
   if action_type == "complete" then
     if state_obj.on_complete then
-      state_obj.on_complete(task)
+      -- Complete the task, then refresh in-place instead of creating new view
+      local init = require("todoist.init")
+      init.complete_task(task.id, function(close_err)
+        if close_err then
+          vim.notify(close_err, vim.log.levels.ERROR)
+          return
+        end
+        vim.notify(string.format("Completed task %s", task.content))
+        -- Use in-place refresh instead of calling on_complete callback
+        refresh_with_loader(state_obj)
+      end)
     end
   elseif action_type == "edit" then
     -- Use edit handler from fzf module
