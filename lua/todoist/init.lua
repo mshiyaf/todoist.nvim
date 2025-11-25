@@ -1,7 +1,7 @@
 local config = require("todoist.config")
 local auth = require("todoist.auth")
 local client = require("todoist.client")
-local ui = require("todoist.ui")
+local fzf = require("todoist.fzf")
 
 local M = {}
 
@@ -35,21 +35,43 @@ local function refresh_tasks(opts)
       return
     end
 
-    ui.show_tasks(tasks or {}, {
-      on_refresh = function()
-        refresh_tasks(opts)
-      end,
-      on_complete = function(task)
-        M.complete_task(task.id, function(close_err)
-          if close_err then
-            notify(close_err, vim.log.levels.ERROR)
-            return
-          end
-          notify(string.format("Completed task %s", task.content))
+    local filtered_tasks = tasks or {}
+
+    if opts.priority_filter or opts.date_filter then
+      fzf.show_tasks_filtered(filtered_tasks, {
+        priority_filter = opts.priority_filter,
+        date_filter = opts.date_filter,
+        on_refresh = function()
           refresh_tasks(opts)
-        end)
-      end,
-    })
+        end,
+        on_complete = function(task)
+          M.complete_task(task.id, function(close_err)
+            if close_err then
+              notify(close_err, vim.log.levels.ERROR)
+              return
+            end
+            notify(string.format("Completed task %s", task.content))
+            refresh_tasks(opts)
+          end)
+        end,
+      })
+    else
+      fzf.show_tasks(filtered_tasks, {
+        on_refresh = function()
+          refresh_tasks(opts)
+        end,
+        on_complete = function(task)
+          M.complete_task(task.id, function(close_err)
+            if close_err then
+              notify(close_err, vim.log.levels.ERROR)
+              return
+            end
+            notify(string.format("Completed task %s", task.content))
+            refresh_tasks(opts)
+          end)
+        end,
+      })
+    end
   end)
 end
 

@@ -17,6 +17,28 @@ local defaults = {
       logout = "<leader>tL",
     }
   },
+  fzf = {
+    winopts = {
+      height = 0.85,
+      width = 0.80,
+      preview = {
+        layout = "vertical",
+        vertical = "down:45%",
+      },
+    },
+    keybinds = {
+      complete = "default",
+      view_details = "ctrl-d",
+      edit = "ctrl-e",
+      delete = "ctrl-x",
+      refresh = "ctrl-r",
+    },
+  },
+  task_format = {
+    show_id = true,
+    show_priority = true,
+    show_due_date = true,
+  },
 }
 
 local state = vim.deepcopy(defaults)

@@ -1,16 +1,19 @@
 # todoist.nvim
 
-A minimal Todoist client for Neovim. Fetch, add, and complete tasks from Todoist without leaving your editor.
+A powerful Todoist client for Neovim with fuzzy search powered by fzf-lua. Manage your tasks with full CRUD operations without leaving your editor.
 
 ## Features
-- Secure token handling (env var or permissioned file with `0600` under `stdpath('data')/todoist/token`).
-- Async API calls via `curl`; no external Lua dependencies.
-- Floating window task viewer with refresh and complete shortcuts.
-- Commands to add tasks, list open tasks, and close them from Neovim.
+- **fzf-lua integration** for powerful fuzzy search and filtering
+- **Full task management**: View, create, edit, complete, and delete tasks
+- **Advanced filtering**: Filter by project, priority, and due date
+- **Live preview**: See full task details in real-time preview pane
+- **Secure token handling** (env var or permissioned file with `0600` under `stdpath('data')/todoist/token`)
+- **Async API calls** via `curl` with no external dependencies
 
 ## Requirements
-- Neovim 0.8+ (uses `vim.fn.jobstart`).
-- `curl` available in `PATH` (used for API requests).
+- Neovim 0.8+ (uses `vim.fn.jobstart`)
+- `curl` available in `PATH` (used for API requests)
+- [fzf-lua](https://github.com/ibhagwan/fzf-lua) plugin (required dependency)
 
 ## Installation
 Lazy.nvim example:
@@ -18,6 +21,7 @@ Lazy.nvim example:
 ```lua
 {
   "mshiyaf/todoist.nvim",
+  dependencies = { "ibhagwan/fzf-lua" },
   config = function()
     require("todoist").setup({
       -- optional overrides
@@ -33,6 +37,7 @@ Packer example:
 ```lua
 use({
   "mshiyaf/todoist.nvim",
+  requires = { "ibhagwan/fzf-lua" },
   config = function()
     require("todoist").setup()
   end,
@@ -45,16 +50,22 @@ use({
 3. Remove saved credentials with `:TodoistLogout`.
 
 ## Commands
-- `:TodoistLogin` – prompt for an API token and save it securely.
-- `:TodoistLogout` – delete the saved token file.
-- `:TodoistTasks [project_id]` – open a floating list of your open tasks (filtered by optional project id).
-- `:TodoistAdd` – interactive prompts to create a new task (uses configured default project/priority).
-- `:TodoistComplete <id>` – close a task by id.
+- `:TodoistLogin` – prompt for an API token and save it securely
+- `:TodoistLogout` – delete the saved token file
+- `:TodoistTasks [project_id]` – open fzf-lua picker with your tasks (filtered by optional project id)
+- `:TodoistAdd` – interactive prompts to create a new task (uses configured default project/priority)
+- `:TodoistComplete <id>` – close a task by id
 
-In the task window:
-- `r` refresh
-- `c` or `<CR>` close the task under the cursor
-- `q` close the window
+## Picker Actions
+
+When the fzf-lua picker is open, you can use these keybindings:
+
+- `Enter` – Complete the selected task
+- `Ctrl-d` – View full task details in a popup window
+- `Ctrl-e` – Edit task (content, due date, or priority)
+- `Ctrl-x` – Delete task (with confirmation)
+- `Ctrl-r` – Refresh task list
+- Type to fuzzy search across all task fields
 
 ## Keybindings
 
@@ -67,10 +78,12 @@ By default, todoist.nvim sets up the following global keymaps:
 
 (In LazyVim, `<leader>` is `<space>`, so `<leader>tt` is `<space>tt`)
 
-In the tasks window:
-- `r` – Refresh tasks
-- `c` or `<CR>` – Complete task under cursor
-- `q` – Close window
+In the fzf-lua picker:
+- `Enter` – Complete task
+- `Ctrl-d` – View full task details
+- `Ctrl-e` – Edit task (content/due/priority)
+- `Ctrl-x` – Delete task
+- `Ctrl-r` – Refresh task list
 
 ### Customizing Keymaps
 
@@ -120,12 +133,12 @@ For better group naming in which-key, add this to your config:
 ## Configuration
 All options are passed to `require("todoist").setup({ ... })`:
 
-- `default_project` (number) – default project id for new tasks and list filters.
-- `default_priority` (1-4) – default priority for created tasks.
-- `curl_bin` (string) – override the curl binary path.
-- `notify` (function) – custom notification handler (defaults to `vim.notify`).
-- `data_dir` (string) – where the token file is stored (defaults to `stdpath('data')/todoist`).
-- `api_base` (string) – Todoist REST base URL (defaults to `https://api.todoist.com/rest/v2`).
+- `default_project` (number) – default project id for new tasks and list filters
+- `default_priority` (1-4) – default priority for created tasks
+- `curl_bin` (string) – override the curl binary path
+- `notify` (function) – custom notification handler (defaults to `vim.notify`)
+- `data_dir` (string) – where the token file is stored (defaults to `stdpath('data')/todoist`)
+- `api_base` (string) – Todoist REST base URL (defaults to `https://api.todoist.com/rest/v2`)
 - **`keymaps`** (table) – keymap configuration:
   - `enable` (boolean) – enable/disable automatic keymaps (default: `true`)
   - `mappings` (table) – custom keymap definitions:
@@ -133,6 +146,40 @@ All options are passed to `require("todoist").setup({ ... })`:
     - `add_task` (string|false) – add task (default: `"<leader>ta"`)
     - `login` (string|false) – login (default: `"<leader>tl"`)
     - `logout` (string|false) – logout (default: `"<leader>tL"`)
+- **`fzf`** (table) – fzf-lua picker configuration:
+  - `winopts` (table) – window options (height, width, preview layout)
+  - `keybinds` (table) – action keybindings:
+    - `complete` (string) – complete task (default: `"default"` = Enter)
+    - `view_details` (string) – view details (default: `"ctrl-d"`)
+    - `edit` (string) – edit task (default: `"ctrl-e"`)
+    - `delete` (string) – delete task (default: `"ctrl-x"`)
+    - `refresh` (string) – refresh list (default: `"ctrl-r"`)
+- **`task_format`** (table) – task display format:
+  - `show_id` (boolean) – show task ID (default: `true`)
+  - `show_priority` (boolean) – show priority (default: `true`)
+  - `show_due_date` (boolean) – show due date (default: `true`)
+
+### Example Configuration
+
+```lua
+require("todoist").setup({
+  default_project = 123456789,
+  default_priority = 2,
+  fzf = {
+    winopts = {
+      height = 0.90,
+      width = 0.85,
+    },
+    keybinds = {
+      complete = "default",
+      view_details = "ctrl-d",
+      edit = "ctrl-e",
+      delete = "ctrl-x",
+      refresh = "ctrl-r",
+    },
+  },
+})
+```
 
 ## Security Notes
 - Tokens are never echoed; `:TodoistLogin` uses `vim.ui.input` with `secret=true`.

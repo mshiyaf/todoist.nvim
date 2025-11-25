@@ -143,4 +143,37 @@ function M.close_task(token, task_id, cb)
   }, cb)
 end
 
+function M.update_task(token, task_id, updates, cb)
+  request({
+    method = "POST",
+    path = string.format("/tasks/%s", task_id),
+    token = token,
+    body = updates,
+  }, cb)
+end
+
+function M.delete_task(token, task_id, cb)
+  request({
+    method = "DELETE",
+    path = string.format("/tasks/%s", task_id),
+    token = token,
+  }, cb)
+end
+
+function M.get_task(token, task_id, cb)
+  request({
+    method = "GET",
+    path = string.format("/tasks/%s", task_id),
+    token = token,
+  }, cb)
+end
+
+function M.fetch_projects(token, cb)
+  request({
+    method = "GET",
+    path = "/projects",
+    token = token,
+  }, cb)
+end
+
 return M
