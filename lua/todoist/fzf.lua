@@ -37,7 +37,7 @@ local function handle_complete(entry, task_map, opts)
   end
 end
 
-local function handle_view_details(entry, task_map)
+local function handle_view_details(entry, task_map, fzf_resume_fn)
   local parsed = parse_task_from_entry(entry)
   if not parsed then return end
 
@@ -80,6 +80,9 @@ local function handle_view_details(entry, task_map)
 
   vim.keymap.set("n", "q", function()
     vim.api.nvim_win_close(win, true)
+    if fzf_resume_fn then
+      vim.schedule(fzf_resume_fn)
+    end
   end, { buffer = buf })
 end
 
@@ -203,13 +206,17 @@ end
 
 local function create_actions(task_map, opts)
   local cfg = require("todoist.config").get()
+  local fzf = require("fzf-lua")
 
   return {
     [cfg.fzf.keybinds.complete] = function(selected)
       handle_complete(selected[1], task_map, opts)
     end,
-    [cfg.fzf.keybinds.view_details] = function(selected)
-      handle_view_details(selected[1], task_map)
+    [cfg.fzf.keybinds.view_details] = function(selected, fzf_opts)
+      handle_view_details(selected[1], task_map, function()
+        fzf.resume()
+      end)
+      return false  -- Keep picker open
     end,
     [cfg.fzf.keybinds.edit] = function(selected)
       handle_edit(selected[1], task_map, opts)
